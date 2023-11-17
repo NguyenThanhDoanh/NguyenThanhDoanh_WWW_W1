@@ -1,0 +1,167 @@
+package vn.iuh.edu.fit.controllers;
+
+import jakarta.servlet.ServletConfig;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.annotation.WebServlet;
+import jakarta.servlet.http.HttpServlet;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import vn.iuh.edu.fit.models.Account;
+import vn.iuh.edu.fit.models.Role;
+import vn.iuh.edu.fit.repositories.AccountRepositories;
+import vn.iuh.edu.fit.repositories.GrantAccessRepositories;
+import vn.iuh.edu.fit.repositories.RoleRepositories;
+
+import java.io.IOException;
+import java.util.ArrayList;
+
+@WebServlet(urlPatterns = {"/ControllerServlet"})
+public class ControllerServlet extends HttpServlet {
+
+
+    private final AccountRepositories AccRepo = new AccountRepositories();
+    private final RoleRepositories RollRepo = new RoleRepositories();
+    private final GrantAccessRepositories GrantRepo = new GrantAccessRepositories();
+
+    @Override
+    public void init() throws ServletException {
+        super.init();
+    }
+
+    @Override
+    public void init(ServletConfig config) throws ServletException {
+        super.init(config);
+    }
+
+    @Override
+    protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+
+    }
+
+    private void setHeaderContent(HttpServletRequest req, Account acc, String nameRole) {
+        req.setAttribute("user", acc);
+        req.setAttribute("rolename", nameRole);
+    }
+
+    private void setContentAdmin(HttpServletRequest req) {
+        ArrayList<Account> accounts = AccRepo.getUsers();
+        ArrayList<Role> roles = RollRepo.getRoles();
+        req.setAttribute("users", accounts);
+        req.setAttribute("roles", roles);
+    }
+
+    private void CRUD(HttpServletRequest req, HttpServletResponse resp, String action) throws IOException, ServletException {
+        HttpSession session = req.getSession(false);
+        if (session != null) {
+
+            String roleName = (String) session.getAttribute("roleName");
+            Account acc = (Account) session.getAttribute("userLogin");
+
+
+            switch (action) {
+                case "Create":
+                    setHeaderContent(req, acc, roleName);
+
+
+                    String username = req.getParameter("username");
+                    String password = req.getParameter("password");
+                    String email = req.getParameter("email");
+                    String phone = req.getParameter("phone");
+                    String roleID = req.getParameter("role");
+                    System.out.println(roleID);
+                    String uid = req.getParameter("id");
+                    Account acc_new = new Account(uid, username, password, email, phone, 1);
+
+
+                    Boolean result_add_account = AccRepo.addAccount(acc_new);
+                    Boolean result_add_Grant_Access = GrantRepo.addGrantAccess(acc_new, new Role(roleID));
+                    if (result_add_account && result_add_Grant_Access) {
+                        setHeaderContent(req, acc, roleName);
+                        setContentAdmin(req);
+                        req.getRequestDispatcher("WEB-INF/Dashboard.jsp").forward(req, resp);
+                    }
+                    resp.getWriter().println("them that bai !!!");
+
+
+                    break;
+                case "Delete":
+                    String id = req.getParameter("id");
+
+
+                    setHeaderContent(req, acc, roleName);
+                    setContentAdmin(req);
+                    break;
+
+                case "Update":
+
+                    break;
+                default:
+
+            }
+
+
+        } else {
+            resp.getWriter().println("please login !!!");
+        }
+
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
+        String action = req.getParameter("action");
+
+
+        if (action.equalsIgnoreCase("login")) {
+            String username = req.getParameter("username");
+            String password = req.getParameter("password");
+            Account acc = AccRepo.checkLogin(username, password);
+
+            if (acc == null) {
+                resp.getWriter().println("wrong password or username !!");
+            } else {
+                String uid = acc.getAccountId();
+                Role role = GrantRepo.getRoleByUid(uid);
+                if (role != null) {
+
+
+                    String nameRole = role.getRoleName();
+                    //store session
+                    HttpSession session = req.getSession();
+                    session.setAttribute("userLogin", acc);
+                    session.setAttribute("roleName", nameRole);
+                    //store table log
+
+                    //
+                    setHeaderContent(req, acc, nameRole);
+
+
+                    if (nameRole.equalsIgnoreCase("administrator")) {
+                        setContentAdmin(req);
+                        req.getRequestDispatcher("WEB-INF/Dashboard.jsp").forward(req, resp);
+                    } else {
+
+                        req.getRequestDispatcher("WEB-INF/Dashboard.jsp").forward(req, resp);
+                    }
+
+
+                } else {
+                    resp.getWriter().println("can not access !! !");
+                }
+
+            }
+        } else if (action.equalsIgnoreCase("addUser")) {
+            CRUD(req, resp, "Create");
+        } else if (action.equalsIgnoreCase("logout")) {
+            HttpSession session = req.getSession();
+            session.invalidate();
+            resp.sendRedirect("http://localhost:8080/Week01/");
+        } else if (action.equalsIgnoreCase("removeUser")) {
+            CRUD(req, resp, "Delete");
+        } else if (action.equalsIgnoreCase("UpdateUser")) {
+            CRUD(req, resp, "Update");
+        }
+
+
+    }
+}
